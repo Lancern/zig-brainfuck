@@ -1,0 +1,10 @@
+# IDE and editor files.
+.idea/
+.vscode/
+
+# macOS Finder garbage.
+.DS_Store
+
+# Zig build directory and ZLS cache directory.
+zig-out/
+zig-cache/
