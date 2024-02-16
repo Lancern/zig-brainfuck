@@ -22,9 +22,6 @@ pub const Parser = struct {
     pub fn deinit(self: Parser) void {
         var node = self.slots.first;
         while (node) |node_ptr| {
-            if (node_ptr.data.value) |node_value| {
-                self.allocator.free(node_value);
-            }
             node = node_ptr.next;
             self.allocator.destroy(node_ptr);
         }
@@ -99,7 +96,7 @@ pub const Parser = struct {
             }
         }
 
-        if (current_option == null) {
+        if (current_option != null) {
             return ParseError.NoArgument;
         }
 
@@ -109,6 +106,7 @@ pub const Parser = struct {
             if (node_ptr.data.isPositional() and node_ptr.data.value == null) {
                 return ParseError.NoArgument;
             }
+            node = node_ptr.next;
         }
     }
 

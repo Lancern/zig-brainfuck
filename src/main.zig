@@ -18,9 +18,7 @@ pub fn main() void {
     const file_arg = cli_parser.addArgument(.{});
     cli_parser.parseArgv();
 
-    const exec_name = exec_arg.value orelse {
-        reportErrorAndExit("no executor specified.", .{});
-    };
+    const exec_name = exec_arg.value orelse "ast";
 
     const file = file_arg.value orelse {
         reportErrorAndExit("no input file specified.", .{});

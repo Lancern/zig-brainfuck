@@ -8,3 +8,6 @@
 # Zig build directory and ZLS cache directory.
 zig-out/
 zig-cache/
+
+# Brainfuck source files for testing
+*.bf
