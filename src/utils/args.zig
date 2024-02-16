@@ -20,12 +20,13 @@ pub const Parser = struct {
 
     /// Release any resources required by this object.
     pub fn deinit(self: Parser) void {
-        while (self.slots.first != null) {
-            const head = self.slots.popFirst() orelse unreachable;
-            if (head.data.value) |head_value| {
-                self.allocator.free(head_value);
+        var node = self.slots.first;
+        while (node) |node_ptr| {
+            if (node_ptr.data.value) |node_value| {
+                self.allocator.free(node_value);
             }
-            self.allocator.destroy(head);
+            node = node_ptr.next;
+            self.allocator.destroy(node_ptr);
         }
     }
 
@@ -51,22 +52,23 @@ pub const Parser = struct {
     /// If any error occurs during parsing, this function will exit the program.
     pub fn parseArgv(self: Parser) void {
         self.parse(std.os.argv) catch |err| {
-            std.io.getStdErr().writer().print("invalid command line arguments: {s}", .{err});
+            std.io.getStdErr().writer().print("invalid command line arguments: {s}", .{@errorName(err)}) catch {};
             std.os.exit(1);
         };
     }
 
     /// Parse the given command line arguments.
     pub fn parse(self: Parser, argv: [][*:0]const u8) ParseError!void {
-        if (argv.len >= 1) {
+        var args = argv;
+        if (args.len >= 1) {
             // Skip the first element in the argv slice as it is the name of the program.
-            argv = argv[1..];
+            args = args[1..];
         }
 
         var next_pos_arg = find_next_positional(self.slots.first);
 
         var current_option: ?*Node = null;
-        for (argv) |item| {
+        for (args) |item| {
             const item_span = std.mem.span(item);
             if (std.mem.startsWith(u8, item_span, "-")) {
                 if (current_option != null) {
@@ -113,8 +115,10 @@ pub const Parser = struct {
     fn find_option_short(self: Parser, name: []const u8) ?*Node {
         var node = self.slots.first;
         while (node) |node_ptr| {
-            if (std.mem.eql(u8, node_ptr.data.short, name)) {
-                return node_ptr;
+            if (node_ptr.data.short) |short_name| {
+                if (std.mem.eql(u8, short_name, name)) {
+                    return node_ptr;
+                }
             }
             node = node_ptr.next;
         }
@@ -124,8 +128,10 @@ pub const Parser = struct {
     fn find_option_long(self: Parser, name: []const u8) ?*Node {
         var node = self.slots.first;
         while (node) |node_ptr| {
-            if (std.mem.eql(u8, node_ptr.data.long, name)) {
-                return node_ptr;
+            if (node_ptr.data.long) |long_name| {
+                if (std.mem.eql(u8, long_name, name)) {
+                    return node_ptr;
+                }
             }
             node = node_ptr.next;
         }
@@ -133,13 +139,14 @@ pub const Parser = struct {
     }
 
     fn find_next_positional(node: ?*Node) ?*Node {
-        while (node) |ptr| {
+        var current = node;
+        while (current) |ptr| {
             if (ptr.data.isPositional()) {
                 break;
             }
-            node = ptr.next;
+            current = ptr.next;
         }
-        return node;
+        return current;
     }
 };
 

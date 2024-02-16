@@ -32,16 +32,16 @@ pub fn main() void {
     defer executor.deinit();
 
     const file_content = readFile(file, allocator) catch |err| {
-        reportErrorAndExit("failed to read input file: {s}", .{err});
+        reportErrorAndExit("failed to read input file: {s}", .{@errorName(err)});
     };
 
     const prog = parser.parse(file_content, allocator) catch |err| {
-        reportErrorAndExit("failed to parse input: {s}", .{err});
+        reportErrorAndExit("failed to parse input: {s}", .{@errorName(err)});
     };
     defer prog.deinit();
 
     executor.execute(&prog) catch |err| {
-        reportErrorAndExit("failed to execute: {s}", .{err});
+        reportErrorAndExit("failed to execute: {s}", .{@errorName(err)});
     };
 }
 
@@ -55,7 +55,7 @@ fn readFile(path: []const u8, allocator: std.mem.Allocator) ![]const u8 {
     const buffer = allocator.alloc(u8, file_size) catch @panic("memory allocation failed");
     errdefer allocator.free(buffer);
 
-    try file.readAll(buffer);
+    _ = try file.readAll(buffer);
 
     return buffer;
 }
@@ -63,7 +63,7 @@ fn readFile(path: []const u8, allocator: std.mem.Allocator) ![]const u8 {
 const Executor = struct {
     const VTable = struct {
         execute: *const fn (*anyopaque, prog: *const ast.Program) anyerror!void,
-        deinit: *const fn (*anyopaque) void,
+        deinit: *const fn (*anyopaque, allocator: std.mem.Allocator) void,
     };
 
     allocator: std.mem.Allocator,
@@ -71,8 +71,7 @@ const Executor = struct {
     vtable: VTable,
 
     fn deinit(self: Executor) void {
-        self.vtable.deinit(self.ptr);
-        self.allocator.destroy(self.ptr);
+        self.vtable.deinit(self.ptr, self.allocator);
     }
 
     fn execute(self: Executor, prog: *const ast.Program) anyerror!void {
@@ -99,7 +98,7 @@ fn createExecutor(name: []const u8, allocator: std.mem.Allocator) ?Executor {
 }
 
 fn createInterpExecutor(allocator: std.mem.Allocator) Executor {
-    const state = allocator.create(interp.InterpState);
+    const state = allocator.create(interp.InterpState) catch @panic("memory allocation failed");
     state.* = interp.InterpState.init(allocator);
 
     const vtable = Executor.VTable{
@@ -115,12 +114,13 @@ fn createInterpExecutor(allocator: std.mem.Allocator) Executor {
 }
 
 fn interpExecutorExecute(opaque_state: *anyopaque, prog: *const ast.Program) anyerror!void {
-    var state: *interp.InterpState = @ptrCast(opaque_state);
-    var interpreter = interp.Interp.init(prog, &state);
+    var state: *interp.InterpState = @ptrCast(@alignCast(opaque_state));
+    var interpreter = interp.Interp.init(prog, state);
     try interpreter.run();
 }
 
-fn interpExecutorDeinit(opaque_state: *anyopaque) void {
-    const state: *interp.InterpState = @ptrCast(opaque_state);
+fn interpExecutorDeinit(opaque_state: *anyopaque, allocator: std.mem.Allocator) void {
+    const state: *interp.InterpState = @ptrCast(@alignCast(opaque_state));
     state.deinit();
+    allocator.destroy(state);
 }

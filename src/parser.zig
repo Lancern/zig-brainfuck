@@ -25,7 +25,7 @@ fn parse_commands(lexer: *Lexer, allocator: std.mem.Allocator) ParseError!std.Ar
     var commands = std.ArrayList(ast.Command).init(allocator);
     while (lexer.lex()) {
         const cmd = try parse_cmd(lexer, allocator);
-        commands.append(cmd);
+        commands.append(cmd) catch @panic("memory allocation failed");
     }
     return commands;
 }
@@ -56,7 +56,7 @@ fn parse_cmd(lexer: *Lexer, allocator: std.mem.Allocator) ParseError!ast.Command
 }
 
 fn parse_loop(lexer: *Lexer, allocator: std.mem.Allocator) ParseError!ast.Command {
-    std.debug.assert(lexer.input[lexer.next_loc] == '[');
+    std.debug.assert(lexer.input[lexer.ptr] == '[');
 
     const start_loc = lexer.next_loc;
 
@@ -67,10 +67,10 @@ fn parse_loop(lexer: *Lexer, allocator: std.mem.Allocator) ParseError!ast.Comman
 
     // Find the matching ']' character.
     var num_open_brackets: u16 = 0;
-    while (!lexer.isEof() and (lexer.next_loc[lexer.ptr] != ']' or num_open_brackets > 0)) {
-        if (lexer.next_loc[lexer.ptr] == '[') {
+    while (!lexer.isEof() and (lexer.input[lexer.ptr] != ']' or num_open_brackets > 0)) {
+        if (lexer.input[lexer.ptr] == '[') {
             num_open_brackets += 1;
-        } else if (lexer.next_loc[lexer.ptr] == ']') {
+        } else if (lexer.input[lexer.ptr] == ']') {
             num_open_brackets -= 1;
         }
         lexer.advance();

@@ -11,11 +11,11 @@ pub const InterpState = struct {
     data_ptr: usize,
 
     /// Initialize a new interpreter state that uses the given memory allocator.
-    pub fn init(allocator: std.mem.Allocator) Interp {
+    pub fn init(allocator: std.mem.Allocator) InterpState {
         const MEMORY_SIZE = 65535;
         const memory = allocator.alloc(u8, MEMORY_SIZE) catch @panic("memory allocation fails");
         @memset(memory, 0);
-        return Interp{
+        return InterpState{
             .alloc = allocator,
             .memory = memory,
             .data_ptr = 0,
@@ -42,8 +42,8 @@ pub const Interp = struct {
     }
 
     /// Run the Brainfuck program.
-    pub fn run(self: Interp) InterpError!void {
-        for (self.prog.commands.items) |*cmd| {
+    pub fn run(self: *Interp) InterpError!void {
+        for (self.cmds) |*cmd| {
             try self.execute_command(cmd);
         }
     }
@@ -51,30 +51,30 @@ pub const Interp = struct {
     fn execute_command(self: *Interp, cmd: *const ast.Command) InterpError!void {
         switch (cmd.kind) {
             ast.CommandKind.inc_data_ptr => {
-                self.data_ptr +%= 1;
+                self.state.data_ptr +%= 1;
                 try self.check_data_ptr();
             },
             ast.CommandKind.dec_data_ptr => {
-                self.data_ptr -%= 1;
+                self.state.data_ptr -%= 1;
                 try self.check_data_ptr();
             },
             ast.CommandKind.inc_data => {
-                self.memory[self.data_ptr] +%= 1;
+                self.state.memory[self.state.data_ptr] +%= 1;
             },
             ast.CommandKind.dec_data => {
-                self.memory[self.data_ptr] -%= 1;
+                self.state.memory[self.state.data_ptr] -%= 1;
             },
             ast.CommandKind.output => {
-                const data = self.memory[self.data_ptr];
-                std.io.getStdOut().write([_]u8{data}) catch return InterpError.WriteOutputFailed;
+                const data = self.state.memory[self.state.data_ptr];
+                _ = std.io.getStdOut().write(&[_]u8{data}) catch return InterpError.WriteOutputFailed;
             },
             ast.CommandKind.input => {
                 var data = [_]u8{undefined};
-                const bytes_read = std.io.getStdIn().read(data) catch return InterpError.ReadInputFailed;
+                const bytes_read = std.io.getStdIn().read(&data) catch return InterpError.ReadInputFailed;
                 if (bytes_read != 1) {
                     return InterpError.ReadInputFailed;
                 }
-                self.memory[self.data_ptr] = data[0];
+                self.state.memory[self.state.data_ptr] = data[0];
             },
             ast.CommandKind.loop => |loop| {
                 var sub_interp = Interp{
@@ -82,7 +82,7 @@ pub const Interp = struct {
                     .state = self.state,
                 };
 
-                while (self.memory[self.data_ptr] != 0) {
+                while (self.state.memory[self.state.data_ptr] != 0) {
                     try sub_interp.run();
                 }
             },
@@ -90,7 +90,7 @@ pub const Interp = struct {
     }
 
     fn check_data_ptr(self: *Interp) InterpError!void {
-        if (self.data_ptr >= self.memory.len) {
+        if (self.state.data_ptr >= self.state.memory.len) {
             return InterpError.DataPtrOverflow;
         }
     }
